@@ -69,11 +69,7 @@ namespace Lasp
             if (_context == null)
             {
                 // backend context initialization
-            #if LASP_BACKEND_MINIAUDIO
-                _context = new MiniaudioBackend().CreateContext();
-            #else
-                _context = new SoundIOBackend().CreateContext();
-            #endif
+                _context = new AudioBackend().CreateContext();
 
                 _context.OnDevicesChange = _onDevicesChangeDelegate;
                 _context.Connect();

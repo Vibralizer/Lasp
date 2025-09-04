@@ -5,7 +5,7 @@ using PInvokeCallbackAttribute = AOT.MonoPInvokeCallbackAttribute;
 
 namespace Lasp.Backends
 {
-    internal sealed class SoundIOBackend : IAudioBackend
+    internal sealed class AudioBackend : IAudioBackend
     {
         public IContext CreateContext() => new Context();
     }
