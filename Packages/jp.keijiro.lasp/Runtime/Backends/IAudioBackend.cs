@@ -44,9 +44,9 @@ namespace Lasp.Backends
 
         int  BytesPerFrame { get; }
         bool IsActive { get; }
-        IntPtr UserData { get; set; } // GCHandle to InputDeviceHandle; LASP recovers it in the callback.
+        IntPtr UserData { get; set; } // LASP uses this as a GCHandle to InputDeviceHandle
 
-        // Callbacks (same flow LASP uses today).
+        // Callbacks (same flow LASP uses currently).
         public delegate void ReadCallbackDelegate(ref InStreamData stream, int min, int left);
         public delegate void OverflowCallbackDelegate(ref InStreamData stream);
         public delegate void ErrorCallbackDelegate(ref InStreamData stream, int error);
@@ -62,7 +62,7 @@ namespace Lasp.Backends
         // ChannelArea matches SoundIO layout used by LASP: interleaved, Step = bytesPerFrame.
         public unsafe struct ChannelArea { public byte* Pointer; public int Step; }
 
-        // Opaque carrier passed into callbacks; mirrors what LASP expects today:
+        // Opaque carrier passed into callbacks; mirrors what LASP expects currently:
         // UserData is a GCHandle to InputDeviceHandle, BytesPerFrame read inside the loop.
         public struct InStreamData
         {

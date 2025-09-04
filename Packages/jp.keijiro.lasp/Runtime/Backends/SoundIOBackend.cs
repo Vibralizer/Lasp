@@ -50,7 +50,6 @@ namespace Lasp.Backends
 
         public void Dispose()
         {
-            // Optional: detach the native callback for cleanliness
             if (_context != null) _context.OnDevicesChange = null;
             _context?.Dispose();
             _context = null;
@@ -68,7 +67,7 @@ namespace Lasp.Backends
         public string Name => _device.Name;
 
         public int   ChannelCount => _device.Layouts.Length > 0 ? _device.Layouts[0].ChannelCount : 0;
-        public int[] SampleRates // LASP reads SampleRates[0].
+        public int[] SampleRates // LASP reads SampleRates[0]
         {
             get
             {
@@ -97,7 +96,7 @@ namespace Lasp.Backends
         public Stream(Device device) { _device = device; }
 
         // Config LASP settings before calling Open()
-        public int    SampleRate      { get; set; }  // ignored by LASP today (uses device native)
+        public int    SampleRate      { get; set; }  // ignored by LASP currently (uses device native)
         public int    ChannelCount    { get; set; }  // ignored if 0; we set layout from device[0]
         public double SoftwareLatency { get; set; }
 
