@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using InvalidOp = System.InvalidOperationException;
 using PInvokeCallbackAttribute = AOT.MonoPInvokeCallbackAttribute;
+using Lasp.Backends;
 
 namespace Lasp
 {
@@ -23,28 +24,28 @@ namespace Lasp
     //
     sealed class InputDeviceHandle : IDisposable
     {
-        #region SoundIO device object
+        #region Backend device object
 
-        public SoundIO.Device SioDevice => _device;
+        public IDevice BackendDevice => _device;
         public string ID => _device.ID;
         public bool IsValid => _device != null;
 
-        SoundIO.Device _device;
+        IDevice _device;
 
         #endregion
 
-        #region SoundIO stream object
+        #region Backend stream object
 
         public bool IsStreamActive
-          => _stream != null && !_stream.IsInvalid && !_stream.IsClosed;
+          => _stream != null && _stream.IsActive;
 
-        SoundIO.InStream _stream;
+        IInStream _stream;
 
         #endregion
 
         #region Basic stream properties
 
-        public int StreamChannelCount => PreparedStream.Layout.ChannelCount;
+        public int StreamChannelCount => PreparedStream.ChannelCount;
         public int StreamSampleRate => PreparedStream.SampleRate;
 
         #endregion
@@ -87,7 +88,7 @@ namespace Lasp
             return false;
         }
 
-        SoundIO.InStream PreparedStream { get { Prepare(); return _stream; } }
+        IInStream PreparedStream { get { Prepare(); return _stream; } }
 
         int _sleepTimer;
 
@@ -96,11 +97,11 @@ namespace Lasp
         #region Allocation/deallocation
 
         // Factory method
-        public static InputDeviceHandle CreateAndOwn(SoundIO.Device device)
+        public static InputDeviceHandle CreateAndOwn(IDevice device)
           => new InputDeviceHandle(device);
 
         // Private constructor
-        InputDeviceHandle(SoundIO.Device device)
+        InputDeviceHandle(IDevice device)
         {
             _self = GCHandle.Alloc(this);
             _device = device;
@@ -169,35 +170,24 @@ namespace Lasp
         void OpenStream()
         {
             if (IsStreamActive)
-                throw new InvalidOp("Stream alreadly opened");
+                throw new InvalidOp("Stream already opened");
 
             try
             {
-                _stream = SoundIO.InStream.Create(_device);
-
-                if (_stream.IsInvalid)
-                    throw new InvalidOp("Stream allocation error");
-
-                if (_device.Layouts.Length == 0)
-                    throw new InvalidOp("No channel layout");
+                _stream = _device.CreateInStream();
 
                 // Calculate the best latency.
                 // TODO: Should we use the target frame rate instead of 1/60?
                 var bestLatency = Math.Max(1.0 / 60, _device.SoftwareLatencyMin);
 
                 // Stream properties
-                _stream.Format = SoundIO.Format.Float32LE;
-                _stream.Layout = _device.Layouts[0];
                 _stream.SoftwareLatency = bestLatency;
                 _stream.ReadCallback = _readCallback;
                 _stream.OverflowCallback = _overflowCallback;
                 _stream.ErrorCallback = _errorCallback;
                 _stream.UserData = GCHandle.ToIntPtr(_self);
 
-                var err = _stream.Open();
-
-                if (err != SoundIO.Error.None)
-                    throw new InvalidOp($"Stream initialization error ({err})");
+                _stream.Open();
 
                 // We want the buffers to meet the following requirements:
                 // - Doesn't overflow if the main thread pauses for 4 frames.
@@ -220,7 +210,7 @@ namespace Lasp
                 throw;
             }
 
-            _audioLevels = new LevelMeter(_stream.Layout.ChannelCount)
+            _audioLevels = new LevelMeter(_stream.ChannelCount)
               { SampleRate = _stream.SampleRate };
         }
 
@@ -245,24 +235,24 @@ namespace Lasp
         // Calculate a buffer size based on a duration.
         int CalculateBufferSize(float second)
           => (int)(_stream.SampleRate * second) *
-             _stream.Layout.ChannelCount * sizeof(float);
+             _stream.ChannelCount * sizeof(float);
 
         #endregion
 
-        #region SoundIO callback delegates
+        #region IInStream callback delegates
 
-        static SoundIO.InStream.ReadCallbackDelegate
+        static IInStream.ReadCallbackDelegate
           _readCallback = OnReadInStream;
 
-        static SoundIO.InStream.OverflowCallbackDelegate
+        static IInStream.OverflowCallbackDelegate
           _overflowCallback = OnOverflowInStream;
 
-        static SoundIO.InStream.ErrorCallbackDelegate
+        static IInStream.ErrorCallbackDelegate
           _errorCallback = OnErrorInStream;
 
-        [PInvokeCallback(typeof(SoundIO.InStream.ReadCallbackDelegate))]
+        [PInvokeCallback(typeof(IInStream.ReadCallbackDelegate))]
         unsafe static void OnReadInStream
-          (ref SoundIO.InStreamData stream, int min, int left)
+          (ref IInStream.InStreamData stream, int min, int left)
         {
             // Recover the 'this' reference from the UserData pointer.
             var self = (InputDeviceHandle)
@@ -272,8 +262,8 @@ namespace Lasp
             {
                 // Start reading the buffer.
                 var count = left;
-                SoundIO.ChannelArea* areas;
-                stream.BeginRead(out areas, ref count);
+                IInStream.ChannelArea* areas;
+                self._stream.BeginRead(ref stream, out areas, ref count);
 
                 // When getting count == 0, we must stop reading
                 // immediately without calling InStream.EndRead.
@@ -297,19 +287,19 @@ namespace Lasp
                     lock (self._ring) self._ring.Write(span);
                 }
 
-                stream.EndRead();
+                self._stream.EndRead(ref stream);
 
                 left -= count;
             }
         }
 
-        [PInvokeCallback(typeof(SoundIO.InStream.OverflowCallbackDelegate))]
-        static void OnOverflowInStream(ref SoundIO.InStreamData stream)
+        [PInvokeCallback(typeof(IInStream.OverflowCallbackDelegate))]
+        static void OnOverflowInStream(ref IInStream.InStreamData stream)
           => UnityEngine.Debug.LogWarning("InStream overflow");
 
-        [PInvokeCallback(typeof(SoundIO.InStream.ErrorCallbackDelegate))]
+        [PInvokeCallback(typeof(IInStream.ErrorCallbackDelegate))]
         static void OnErrorInStream
-          (ref SoundIO.InStreamData stream, SoundIO.Error error)
+          (ref IInStream.InStreamData stream, int error)
           => UnityEngine.Debug.LogWarning($"InStream error ({error})");
 
         #endregion

@@ -2,13 +2,14 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine.LowLevel;
 using PInvokeCallbackAttribute = AOT.MonoPInvokeCallbackAttribute;
+using Lasp.Backends;
 
 namespace Lasp
 {
     //
     // Audio system class
     //
-    // This class manages a global libsoundio context and a list of devices
+    // This class manages a global backend context and a list of devices
     // found in the context. It's also in charge of invoking the Update
     // function of the device handle class using a Player Loop System.
     //
@@ -58,17 +59,17 @@ namespace Lasp
 
         #endregion
 
-        #region libsoundio context management
+        #region Backend context management
 
-        static SoundIO.Context Context => GetContextWithLazyInitialization();
-        static SoundIO.Context _context;
+        static IContext Context => GetContextWithLazyInitialization();
+        static IContext _context;
 
-        static SoundIO.Context GetContextWithLazyInitialization()
+        static IContext GetContextWithLazyInitialization()
         {
             if (_context == null)
             {
-                // libsoundio context initialization
-                _context = SoundIO.Context.Create();
+                // backend context initialization
+                _context = new SoundIOBackend().CreateContext();
                 _context.OnDevicesChange = _onDevicesChangeDelegate;
                 _context.Connect();
                 _context.FlushEvents();
@@ -99,12 +100,12 @@ namespace Lasp
 
         #endregion
 
-        #region libsoundio context callback delegate
+        #region backend context callback delegate
 
-        static SoundIO.Context.OnDevicesChangeDelegate _onDevicesChangeDelegate
-          = new SoundIO.Context.OnDevicesChangeDelegate(OnDevicesChange);
+        static IContext.OnDevicesChangeDelegate _onDevicesChangeDelegate
+          = new IContext.OnDevicesChangeDelegate(OnDevicesChange);
 
-        [PInvokeCallback(typeof(SoundIO.Context.OnDevicesChangeDelegate))]
+        [PInvokeCallback(typeof(IContext.OnDevicesChangeDelegate))]
         static void OnDevicesChange(System.IntPtr pointer)
           => _shouldScanDevices = true;
 

@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Lasp.Backends;
 
 namespace Lasp
 {
@@ -39,7 +40,7 @@ namespace Lasp
 
         // Scan and update the input device list.
         // It reuses object handles if their bound devices are still there.
-        public void ScanAvailable(SoundIO.Context context)
+        public void ScanAvailable(IContext context)
         {
             var deviceCount = context.InputDeviceCount;
             var defaultIndex = context.DefaultInputDeviceIndex;
@@ -51,25 +52,25 @@ namespace Lasp
                 var dev = context.GetInputDevice(i);
 
                 // Check if the device is useful. Reject it if not.
-                if (dev.IsRaw || dev.Layouts.Length < 1)
+                if (dev.IsRaw || dev.ChannelCount < 1)
                 {
                     dev.Dispose();
                     continue;
                 }
 
                 // Find the same device in the current list.
-                var handle = _list.FindAndRemove(h => h.SioDevice.ID == dev.ID);
+                var handle = _list.FindAndRemove(h => h.BackendDevice.ID == dev.ID);
 
                 if (handle != null)
                 {
-                    // We reuse the handle, so this libsoundio device object
+                    // We reuse the handle, so this backend device object
                     // should be disposed.
                     dev.Dispose();
                 }
                 else
                 {
                     // Create a new handle with transferring the ownership of
-                    // this libsoundio device object.
+                    // this backend device object.
                     handle = InputDeviceHandle.CreateAndOwn(dev);
                 }
 

@@ -9,10 +9,10 @@ namespace Lasp
         #region Property accessors
 
         public bool IsValid => _handle != null && _handle.IsValid;
-        public string ID => _handle.SioDevice.ID;
-        public string Name => _handle.SioDevice.Name;
-        public int ChannelCount => _handle.SioDevice.Layouts[0].ChannelCount;
-        public int SampleRate => _handle.SioDevice.SampleRates[0];
+        public string ID => _handle.BackendDevice.ID;
+        public string Name => _handle.BackendDevice.Name;
+        public int ChannelCount => _handle.BackendDevice.ChannelCount;
+        public int SampleRate => _handle.BackendDevice.SampleRates[0];
 
         #endregion
 
