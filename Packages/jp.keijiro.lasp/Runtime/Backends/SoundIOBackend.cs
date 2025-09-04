@@ -1,3 +1,4 @@
+#if LASP_BACKEND_LIBSOUNDIO
 using System;
 using System.Collections.Generic;
 using PInvokeCallbackAttribute = AOT.MonoPInvokeCallbackAttribute;
@@ -231,3 +232,4 @@ namespace Lasp.Backends
         public IInStream.ErrorCallbackDelegate    ErrorCallback    { get; set; }
     }
 }
+#endif // LASP_BACKEND_LIBSOUNDIO

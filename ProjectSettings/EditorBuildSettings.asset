@@ -8,4 +8,6 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/LevelMeter.unity
     guid: 454f51f321001308589163e79430a7fa
-  m_configObjects: {}
+  m_configObjects:
+    LaspSettings: {fileID: 11400000, guid: 36d6123d48d369f4d9814268a0542624, type: 2}
+  m_UseUCBPForAssetBundles: 0
