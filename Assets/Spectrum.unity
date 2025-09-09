@@ -236,7 +236,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _useDefaultDevice: 1
-  _deviceID: 
+  _deviceID: 7B0030002E0030002E0031002E00300030003000300030003000300030007D
   _channel: 0
   _resolution: 1024
   _autoGain: 1
