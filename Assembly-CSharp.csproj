@@ -51,7 +51,7 @@
     <Compile Include="Assets\Test\DeviceList.cs" />
     <Compile Include="Assets\Test\WaveformRenderer.cs" />
     <Compile Include="Assets\Test\LissajousRenderer.cs" />
-    <None Include="Packages\miniaudio\package.json" />
+    <None Include="Packages\com.vibralizer.miniaudio\package.json" />
     <None Include="Assets\Test\SpectrumColor.shader" />
     <None Include="Packages\jp.keijiro.lasp\package.json" />
     <Reference Include="UnityEngine">
@@ -684,11 +684,11 @@
     <Reference Include="Unity.Mathematics.Editor">
       <HintPath>C:\dev\Lasp\Library\ScriptAssemblies\Unity.Mathematics.Editor.dll</HintPath>
     </Reference>
-    <Reference Include="SoundIO.Runtime">
-      <HintPath>C:\dev\Lasp\Library\ScriptAssemblies\SoundIO.Runtime.dll</HintPath>
-    </Reference>
     <Reference Include="Unity.Rider.Editor">
       <HintPath>C:\dev\Lasp\Library\ScriptAssemblies\Unity.Rider.Editor.dll</HintPath>
+    </Reference>
+    <Reference Include="SoundIO.Runtime">
+      <HintPath>C:\dev\Lasp\Library\ScriptAssemblies\SoundIO.Runtime.dll</HintPath>
     </Reference>
     <Reference Include="Unity.TextMeshPro.Editor">
       <HintPath>C:\dev\Lasp\Library\ScriptAssemblies\Unity.TextMeshPro.Editor.dll</HintPath>
@@ -714,13 +714,13 @@
       <Project>{41b7ce3c-91d4-92b0-61ea-c48ea025334b}</Project>
       <Name>Lasp.Editor</Name>
     </ProjectReference>
-    <ProjectReference Include="Lasp.Runtime.csproj">
-      <Project>{e3f187a7-a8fe-2b56-469f-9918e6a403a0}</Project>
-      <Name>Lasp.Runtime</Name>
-    </ProjectReference>
     <ProjectReference Include="miniaudio.Runtime.csproj">
       <Project>{665133e2-c928-4a09-f1d9-7afd7a060fa2}</Project>
       <Name>miniaudio.Runtime</Name>
+    </ProjectReference>
+    <ProjectReference Include="Lasp.Runtime.csproj">
+      <Project>{e3f187a7-a8fe-2b56-469f-9918e6a403a0}</Project>
+      <Name>Lasp.Runtime</Name>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

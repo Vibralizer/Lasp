@@ -2,11 +2,13 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Text;
 using PInvokeCallbackAttribute = AOT.MonoPInvokeCallbackAttribute;
-using static Lasp.Backends.MiniaudioNative;
+using MiniaudioNative;
 
 namespace Lasp.Backends
 {
+    /// <summary>Miniaudio LASP backend (capture + loopback when available)</summary>
     internal sealed class AudioBackend : IAudioBackend
     {
         public IContext CreateContext() => new Context();
@@ -15,19 +17,14 @@ namespace Lasp.Backends
     internal sealed class Context : IContext
     {
         private IntPtr _ctx;
-
-        // Native devices-changed thunk must be static for AOT; we route to the single live Context.
-        private static readonly DevicesChangedCallback sDevicesChangedThunk = OnDevicesChangeThunkStatic;
-        private static Context sLiveContext; // LASP uses one context; map thunk → instance.
-
-        // Store the managed delegate (rooted here).
         private IContext.OnDevicesChangeDelegate _managedDevicesChanged;
+        private string _deviceSnapshot; // for polling-based device change detection
 
         public Context()
         {
-            _ctx = CtxCreate();
-            sLiveContext = this;
-            CtxSetDevicesChangedCallback(_ctx, sDevicesChangedThunk);
+            _ctx = Miniaudio.CtxCreate();
+            if (_ctx == IntPtr.Zero)
+                throw new InvalidOperationException("Miniaudio: failed to initialize context");
         }
 
         public IContext.OnDevicesChangeDelegate OnDevicesChange
@@ -36,210 +33,265 @@ namespace Lasp.Backends
             set => _managedDevicesChanged = value;
         }
 
-        [PInvokeCallback(typeof(DevicesChangedCallback))]
-        private static void OnDevicesChangeThunkStatic()
+        // Miniaudio does not require an explicit "connect" or event pump. We poll in FlushEvents.
+        public void Connect() => _deviceSnapshot = BuildDeviceSnapshot();
+
+        // Poll device list; if it changed since last tick, notify
+        public void FlushEvents()
         {
-            // Miniaudio callback carries no context pointer; LASP has one context, so use the live one.
-            sLiveContext?._managedDevicesChanged?.Invoke(IntPtr.Zero);
+            
+            // TODO: This currently generates lots of GC and probably is not the best place to do this or not needed.
+            // FlushEvents is called every frame and this does a full string rebuild and comparison every frame.
+            
+            
+            /*var snap = BuildDeviceSnapshot();
+            if (!string.Equals(snap, _deviceSnapshot, StringComparison.Ordinal))
+            {
+                _deviceSnapshot = snap;
+                _managedDevicesChanged?.Invoke(IntPtr.Zero);
+            }*/
         }
 
-        public void Connect()     => CtxConnect(_ctx, -1 /* default backend */);
-        public void FlushEvents() => CtxFlushEvents(_ctx);
+        public int InputDeviceCount => Miniaudio.InputCount(_ctx);
+        public int DefaultInputDeviceIndex => Miniaudio.InputDefaultIndex(_ctx);
 
-        public int InputDeviceCount        => CtxGetInputDeviceCount(_ctx);
-        public int DefaultInputDeviceIndex => CtxGetDefaultInputDeviceIndex(_ctx);
-
-        static string Utf8(IntPtr p)
-        {
-            if (p == IntPtr.Zero) return string.Empty;
-            int len = 0; while (Marshal.ReadByte(p, len) != 0) len++;
-            var buf = new byte[len]; Marshal.Copy(p, buf, 0, len);
-            return System.Text.Encoding.UTF8.GetString(buf);
-        }
-
-        public IDevice GetInputDevice(int index)
-        {
-            return new Device(
-                this,
-                index,
-                Utf8(CtxGetInputDeviceId(_ctx, index)),
-                Utf8(CtxGetInputDeviceName(_ctx, index)),
-                CtxGetInputDeviceChannels(_ctx, index),
-                CtxGetInputDeviceNativeRate(_ctx, index)
-            );
-        }
+        public IDevice GetInputDevice(int index) => new Device(_ctx, index);
 
         public void Dispose()
         {
+            _managedDevicesChanged = null;
             if (_ctx != IntPtr.Zero)
             {
-                // Optional: clear callback on native side if your plugin supports it.
-                CtxDestroy(_ctx);
+                Miniaudio.CtxDestroy(_ctx);
                 _ctx = IntPtr.Zero;
             }
-            if (ReferenceEquals(sLiveContext, this)) sLiveContext = null;
-            _managedDevicesChanged = null;
         }
 
-        internal IntPtr Handle => _ctx;
+        private string BuildDeviceSnapshot()
+        {
+            int n = Miniaudio.InputCount(_ctx);
+            var sb = new StringBuilder(n * 32);
+            sb.Append(n).Append(';');
+            for (int i = 0; i < n; i++)
+            {
+                var id   = Miniaudio.InputId(_ctx, i);
+                var name = Miniaudio.InputName(_ctx, i);
+                int ch   = Miniaudio.InputChannels(_ctx, i);
+                bool lb   = Miniaudio.InputIsLoopback(_ctx, i);
+                sb.Append(id).Append('|').Append(ch).Append('|').Append(lb).Append('|').Append(name).Append(';');
+            }
+            return sb.ToString();
+        }
     }
 
     internal sealed class Device : IDevice
     {
-        readonly Context _ctx;
-        public int Index { get; }
-        public string ID   { get; }
-        public string Name { get; }
-        public int    ChannelCount { get; }
-        public int[]  SampleRates { get; }
-        public bool   IsRaw => false; // LASP filters raw devices; miniaudio doesn’t expose a separate “raw” flag
-        public double SoftwareLatencyMin => 0.0; // not queried from miniaudio; LASP will clamp to >= 1/60
+        private readonly IntPtr _ctx;
+        private readonly int _index;
+        private readonly string _id;
+        private readonly string _name;
+        private readonly int _channels;
+        private readonly int _nativeRate;
 
-        public Device(Context ctx, int index, string id, string name, int ch, int nativeRate)
+        public Device(IntPtr ctx, int index)
         {
-            _ctx = ctx; Index = index; ID = id; Name = name; ChannelCount = ch;
-            SampleRates = nativeRate > 0 ? new[] { nativeRate } : Array.Empty<int>();
+            _ctx = ctx;
+            _index = index;
+            _id = Miniaudio.InputId(ctx, index);
+            _name = Miniaudio.InputName(ctx, index);
+            _channels = Math.Max(0, Miniaudio.InputChannels(ctx, index));
+            _nativeRate = Math.Max(0, Miniaudio.InputNativeRate(ctx, index));
         }
 
-        public IInStream CreateInStream() => new Stream(_ctx, this);
-        public void Dispose() { /* miniaudio device objects are owned by the context */ }
+        public string ID => _id;
+        public string Name => _name;
 
-        internal Context Ctx => _ctx;
+        // LASP currently uses Layout[0] and SampleRates[0] in SoundIO backend; mirroring that
+        public int   ChannelCount => _channels;
+        public int[] SampleRates  => _nativeRate > 0 ? new[] { _nativeRate } : Array.Empty<int>();
+
+        // Miniaudio has no "raw" flag like libsoundio; reporting false so LASP includes all devices
+        public bool IsRaw => false;
+
+        // Setting a conservative minimum so LASP chooses >= 1/60 s by default
+        public double SoftwareLatencyMin => 1.0 / 60.0;
+
+        public IInStream CreateInStream() => new Stream(this);
+
+        // Miniaudio does not have a "close" method, so we do nothing (there are no per-device resources to free)
+        public void Dispose() {  }
+
+        internal IntPtr Ctx => _ctx;
+        internal int    Index => _index;
     }
 
     internal sealed class Stream : IInStream
     {
-        readonly Context _ctx;
-        readonly Device  _dev;
+        private readonly Device _device;
 
-        IntPtr _stream;
-        bool   _started;
+        // Native mu_device* managed by the wrapper.
+        private IntPtr _nativeDevice;
 
-        public Stream(Context ctx, Device dev) { _ctx = ctx; _dev = dev; }
+        // Callback routing
+        private static readonly Dictionary<IntPtr, Stream> sMap = new Dictionary<IntPtr, Stream>();
+        private static readonly object sLock = new object();
+        private static readonly Miniaudio.DeviceReadCallback sRead = OnReadThunk;
 
-        // LASP sets these prior to Open(); 0 means “native”.
+        // Live read window (valid only during callback)
+        private IntPtr _readPtr;         // current byte* into interleaved buffer
+        private int    _framesAvailable; // frames remaining in current callback
+        private int    _bytesPerFrame;   // computed by native device
+        private int    _lastBeginFrames; // frames handed out by latest BeginRead
+
+        // A stable unmanaged ChannelArea (one item) that's reused across BeginRead/EndRead.
+        private readonly unsafe IntPtr _areaPtr = Marshal.AllocHGlobal(sizeof(IInStream.ChannelArea));
+
+        public Stream(Device device) { _device = device; }
+
+        // ===== IInStream config (set by LASP before Open) =====
         public int    SampleRate      { get; set; }   // 0 = native
         public int    ChannelCount    { get; set; }   // 0 = native
         public double SoftwareLatency { get; set; }   // seconds
+        public int  BytesPerFrame => _bytesPerFrame;
+        public bool IsActive => _nativeDevice != IntPtr.Zero;
 
-        public int  BytesPerFrame => _stream == IntPtr.Zero ? 0 : StreamGetBytesPerFrame(_stream);
-        public bool IsActive      => _stream != IntPtr.Zero && _started;
-        public IntPtr UserData    { get; set; } // GCHandle to InputDeviceHandle (set by LASP)
-
-        // AOT-safe rooted thunks (native → managed)
-        static readonly ReadCallback     sRead     = OnReadThunk;
-        static readonly OverflowCallback sOverflow = OnOverflowThunk;
-        static readonly ErrorCallback    sError    = OnErrorThunk;
-
-        // Map InputDeviceHandle GCHandle (UserData) → this Stream, to route thunks.
-        static readonly Dictionary<IntPtr, Stream> sMap = new Dictionary<IntPtr, Stream>();
+        private IntPtr _userData;
+        public IntPtr UserData
+        {
+            get => _userData;
+            set
+            {
+                _userData = value;
+                if (_nativeDevice != IntPtr.Zero)
+                {
+                    Miniaudio.DeviceSetReadCallback(_nativeDevice, sRead, _userData);
+                }
+                // Register/refresh routing entry.
+                if (_userData != IntPtr.Zero)
+                {
+                    lock (sLock) sMap[_userData] = this;
+                }
+            }
+        }
 
         public void Open()
         {
-            if (_stream != IntPtr.Zero) return;
+            if (_nativeDevice != IntPtr.Zero) return;
 
-            _stream = StreamCreate(
-                _ctx.Handle,
-                _dev.Index,
-                loopback: 0,                  // capture by default; loopback can be a separate “device kind”
-                sampleRate: SampleRate,       // 0 = native
-                channels:   ChannelCount,     // 0 = native
-                softwareLatency: SoftwareLatency
-            );
+            _nativeDevice = Miniaudio.DeviceCreate(
+                _device.Ctx, _device.Index,
+                SampleRate, ChannelCount, SoftwareLatency);
 
-            if (_stream == IntPtr.Zero)
-                throw new InvalidOperationException("Miniaudio StreamCreate failed");
+            if (_nativeDevice == IntPtr.Zero)
+                throw new InvalidOperationException("Miniaudio: device initialization failed");
 
-            // Install callbacks and set LASP’s GCHandle as native UserData
-            StreamSetCallbacks(_stream, sRead, sOverflow, sError);
+            // Set callback (user pointer may still be 0 here; it will be updated when UserData is set).
+            Miniaudio.DeviceSetReadCallback(_nativeDevice, sRead, _userData);
 
-            // Register this stream for thunk routing only after a successful open
-            StreamSetUserData(_stream, UserData);
-            lock (sMap) sMap[UserData] = this;
-
-            // Capture negotiated format so LASP can size its buffers.
-            SampleRate = StreamGetSampleRate(_stream);
-
-            // If ChannelCount wasn’t requested, infer from device or bytes/frame (float32 interleaved).
-            if (ChannelCount <= 0)
+            // Snapshot negotiated values (bytes-per-frame can be queried immediately).
+            _bytesPerFrame = Miniaudio.DeviceBytesPerFrame(_nativeDevice);
+            if (SampleRate == 0) SampleRate = Miniaudio.DeviceSampleRate(_nativeDevice);
+            if (ChannelCount == 0 && _bytesPerFrame > 0)
             {
-                var bpf = BytesPerFrame;
-                if (bpf > 0) ChannelCount = Math.Max(1, bpf / 4);
-                if (ChannelCount <= 0 && _dev.ChannelCount > 0) ChannelCount = _dev.ChannelCount;
-                if (ChannelCount <= 0) ChannelCount = 1;
+                // All capture is float32; bytesPerSample = 4.
+                ChannelCount = _bytesPerFrame / 4;
             }
         }
 
         public void Start()
         {
-            if (_stream == IntPtr.Zero) throw new InvalidOperationException("Stream not opened");
-            if (_started) return;
-            StreamStart(_stream);
-            _started = true;
+            if (_nativeDevice == IntPtr.Zero) throw new InvalidOperationException("Stream not opened");
+            Miniaudio.DeviceStart(_nativeDevice);
         }
 
         public void Stop()
         {
-            if (_stream == IntPtr.Zero) return;
-            StreamStop(_stream);
-            _started = false;
+            if (_nativeDevice == IntPtr.Zero) return;
 
-            lock (sMap) sMap.Remove(UserData);
-            StreamDestroy(_stream);
-            _stream = IntPtr.Zero;
+            // Remove routing before tearing down native resources.
+            if (_userData != IntPtr.Zero)
+            {
+                lock (sLock) sMap.Remove(_userData);
+            }
+
+            Miniaudio.DeviceStop(_nativeDevice);
+            Miniaudio.DeviceDestroy(_nativeDevice);
+            _nativeDevice = IntPtr.Zero;
+            _framesAvailable = 0;
+            _lastBeginFrames = 0;
+            _readPtr = IntPtr.Zero;
         }
 
-        public void Dispose() => Stop();
-
-        // ===== Native → managed thunks ===========================================
-
-        [PInvokeCallback(typeof(ReadCallback))]
-        static void OnReadThunk(ref IInStream.InStreamData s, int min, int left)
+        public void Dispose()
         {
-            if (!TryGetSelf(s.UserData, out var self)) return;
-            self.ReadCallback?.Invoke(ref s, min, left);
+            Stop();
+            if (_areaPtr != IntPtr.Zero) Marshal.FreeHGlobal(_areaPtr);
         }
 
-        [PInvokeCallback(typeof(OverflowCallback))]
-        static void OnOverflowThunk(ref IInStream.InStreamData s)
+        // Callback bridge (native → managed)
+        [PInvokeCallback(typeof(Miniaudio.DeviceReadCallback))]
+        private static unsafe void OnReadThunk(IntPtr user, IntPtr interleaved, int frameCount, int bytesPerFrame)
         {
-            if (!TryGetSelf(s.UserData, out var self)) return;
-            self.OverflowCallback?.Invoke(ref s);
+            Stream self;
+            lock (sLock) sMap.TryGetValue(user, out self);
+            if (self == null) return;
+
+            self._readPtr = interleaved;
+            self._framesAvailable = frameCount;
+            self._bytesPerFrame = bytesPerFrame;
+
+            var payload = new IInStream.InStreamData
+            {
+                Handle        = IntPtr.Zero, // not used in this backend
+                UserData      = user,        // GCHandle to InputDeviceHandle (Lasp expects this)
+                BytesPerFrame = bytesPerFrame
+            };
+
+            // min/left are not differentiated by miniaudio; supply frameCount for both.
+            self.ReadCallback?.Invoke(ref payload, frameCount, frameCount);
         }
 
-        [PInvokeCallback(typeof(ErrorCallback))]
-        static void OnErrorThunk(ref IInStream.InStreamData s, int err)
-        {
-            if (!TryGetSelf(s.UserData, out var self)) return;
-            self.ErrorCallback?.Invoke(ref s, err);
-        }
-
-        static bool TryGetSelf(IntPtr key, out Stream self)
-        {
-            lock (sMap) return sMap.TryGetValue(key, out self);
-        }
-
-        // ===== IInStream: BeginRead / EndRead (miniaudio variant) ================
-
-        public unsafe void BeginRead(ref IInStream.InStreamData _,
+        // IInStream: BeginRead
+        public unsafe void BeginRead(ref IInStream.InStreamData stream,
                                      out IInStream.ChannelArea* areas,
                                      ref int frameCount)
         {
-            // Miniaudio hands back a single interleaved area with Step = BytesPerFrame
-            MiniaudioNative.ChannelArea* nativeAreas;
-            StreamBeginRead(_stream, out nativeAreas, ref frameCount);
-            areas = (IInStream.ChannelArea*)nativeAreas;
+            // If nothing is available in the current callback, return zero frames.
+            if (_framesAvailable <= 0)
+            {
+                areas = (IInStream.ChannelArea*)_areaPtr;
+                areas->Pointer = (byte*)IntPtr.Zero;
+                areas->Step = _bytesPerFrame;
+                frameCount = 0;
+                _lastBeginFrames = 0;
+                return;
+            }
+
+            int n = frameCount <= 0 ? _framesAvailable : Math.Min(frameCount, _framesAvailable);
+            var area = (IInStream.ChannelArea*)_areaPtr;
+            area->Pointer = (byte*)_readPtr;
+            area->Step = _bytesPerFrame;
+
+            areas = (IInStream.ChannelArea*)_areaPtr;
+            frameCount = n;
+            _lastBeginFrames = n;
         }
 
-        public void EndRead(ref IInStream.InStreamData _)
+        // IInStream: EndRead
+        public void EndRead(ref IInStream.InStreamData stream)
         {
-            StreamEndRead(_stream);
+            if (_lastBeginFrames > 0)
+            {
+                _readPtr = IntPtr.Add(_readPtr, _lastBeginFrames * _bytesPerFrame);
+                _framesAvailable -= _lastBeginFrames;
+                _lastBeginFrames = 0;
+            }
         }
 
-        // Expose handlers so InputDeviceHandle can assign them.
-        public IInStream.ReadCallbackDelegate      ReadCallback     { get; set; }
-        public IInStream.OverflowCallbackDelegate  OverflowCallback { get; set; }
-        public IInStream.ErrorCallbackDelegate     ErrorCallback    { get; set; }
+        // Expose handlers (InputDeviceHandle assigns these)
+        public IInStream.ReadCallbackDelegate     ReadCallback     { get; set; }
+        public IInStream.OverflowCallbackDelegate OverflowCallback { get; set; }
+        public IInStream.ErrorCallbackDelegate    ErrorCallback    { get; set; }
     }
 }
 #endif // LASP_BACKEND_MINIAUDIO

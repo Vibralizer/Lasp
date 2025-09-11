@@ -49,7 +49,6 @@
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\PropertyBinder.cs" />
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\Internal\InputDeviceHandle.cs" />
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\Internal\LogScaler.cs" />
-    <Compile Include="Packages\jp.keijiro.lasp\Runtime\Backends\MiniaudioNative.cs" />
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\InputStream.cs" />
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\Backends\SoundIOBackend.cs" />
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\AudioSystem.cs" />
@@ -713,6 +712,10 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="miniaudio.Runtime.csproj">
+      <Project>{665133e2-c928-4a09-f1d9-7afd7a060fa2}</Project>
+      <Name>miniaudio.Runtime</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
