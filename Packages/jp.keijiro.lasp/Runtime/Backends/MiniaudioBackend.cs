@@ -36,21 +36,8 @@ namespace Lasp.Backends
         // Miniaudio does not require an explicit "connect" or event pump. We poll in FlushEvents.
         public void Connect() => _deviceSnapshot = BuildDeviceSnapshot();
 
-        // Poll device list; if it changed since last tick, notify
-        public void FlushEvents()
-        {
-            
-            // TODO: This currently generates lots of GC and probably is not the best place to do this or not needed.
-            // FlushEvents is called every frame and this does a full string rebuild and comparison every frame.
-            
-            
-            /*var snap = BuildDeviceSnapshot();
-            if (!string.Equals(snap, _deviceSnapshot, StringComparison.Ordinal))
-            {
-                _deviceSnapshot = snap;
-                _managedDevicesChanged?.Invoke(IntPtr.Zero);
-            }*/
-        }
+        // Miniaudio has no event pump. Do nothing here.
+        public void FlushEvents() { }
 
         public int InputDeviceCount => Miniaudio.InputCount(_ctx);
         public int DefaultInputDeviceIndex => Miniaudio.InputDefaultIndex(_ctx);
