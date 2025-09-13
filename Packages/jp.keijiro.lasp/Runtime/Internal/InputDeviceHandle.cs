@@ -73,7 +73,62 @@ namespace Lasp
         int _windowSize;
 
         #endregion
+        
+        #region Mono-mixed audio data
 
+        // Expose a mono view of the last-frame window (mixed from interleaved data).
+        public ReadOnlySpan<float> LastFrameWindowMono
+            => (_monoWindow != null && _monoWindowSize > 0)
+                ? new ReadOnlySpan<float>(_monoWindow, 0, _monoWindowSize)
+                : ReadOnlySpan<float>.Empty;
+
+        float[] _monoWindow;
+        int _monoWindowSize;
+
+        // Mix interleaved N-channel -> mono (simple average). Stereo fast path.
+        void UpdateMonoWindow(ReadOnlySpan<float> interleaved, int channels)
+        {
+            if (interleaved.Length == 0) { _monoWindowSize = 0; return; }
+
+            int frames = interleaved.Length / channels;
+            EnsureMonoCapacity(frames);
+
+            if (channels == 1)
+            {
+                interleaved.CopyTo(_monoWindow.AsSpan(0, frames));
+                _monoWindowSize = frames;
+                return;
+            }
+
+            if (channels == 2)
+            {
+                int si = 0;
+                for (int i = 0; i < frames; i++, si += 2)
+                    _monoWindow[i] = 0.5f * (interleaved[si] + interleaved[si + 1]);
+                _monoWindowSize = frames;
+                return;
+            }
+
+            float inv = 1f / channels;
+            int idx = 0;
+            for (int i = 0; i < frames; i++)
+            {
+                float sum = 0f;
+                for (int ch = 0; ch < channels; ch++) sum += interleaved[idx++];
+                _monoWindow[i] = sum * inv;
+            }
+            _monoWindowSize = frames;
+        }
+
+        void EnsureMonoCapacity(int frames)
+        {
+            if (_monoWindow == null || _monoWindow.Length < frames)
+                _monoWindow = new float[frames];
+        }
+
+        #endregion
+
+        
         #region "Prepare" method
 
         bool Prepare()
@@ -155,10 +210,15 @@ namespace Lasp
                 if (_ring.OverflowCount > 0) _ring.Clear();
             }
 
+            // Cast the just-copied bytes to float (interleaved).
+            var windowFloats = MemoryMarshal.Cast<byte, float>
+                (new ReadOnlySpan<byte>(_window, 0, _windowSize));
+
+            // Mix down to mono once per frame.
+            UpdateMonoWindow(windowFloats, _stream.ChannelCount);
+
             // Process the audio data.
-            _audioLevels.ProcessAudioData
-              (MemoryMarshal.Cast<byte, float>
-                (new ReadOnlySpan<byte>(_window, 0, _windowSize)));
+            _audioLevels.ProcessAudioData(windowFloats);
         }
 
         const int DelayToSleep = 10;

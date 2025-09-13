@@ -44,6 +44,12 @@ namespace Lasp
 
         public NativeSlice<float> InterleavedDataSlice
           => _deviceHandle.LastFrameWindow.GetNativeSlice();
+        
+        public ReadOnlySpan<float> MonoDataSpan
+          => _deviceHandle.LastFrameWindowMono;
+
+        public NativeSlice<float> MonoDataSlice
+          => _deviceHandle.LastFrameWindowMono.GetNativeSlice();
 
         public NativeSlice<float> GetChannelDataSlice(int channel)
           => _deviceHandle.LastFrameWindow.GetNativeSlice

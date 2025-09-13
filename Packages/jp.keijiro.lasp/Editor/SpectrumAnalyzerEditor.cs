@@ -12,6 +12,7 @@ namespace Lasp.Editor
     {
         SerializedProperty _channel;
         SerializedProperty _resolution;
+        SerializedProperty _mixToMono;
         DeviceSelector _deviceSelector;
         DynamicRangeEditor _dynamicRange;
 
@@ -34,6 +35,7 @@ namespace Lasp.Editor
             var finder = new PropertyFinder(serializedObject);
             _channel = finder["_channel"];
             _resolution = finder["_resolution"];
+            _mixToMono = finder["_mixToMono"];
 
             _deviceSelector = new DeviceSelector(serializedObject);
             _dynamicRange = new DynamicRangeEditor(serializedObject);
@@ -49,8 +51,15 @@ namespace Lasp.Editor
             using (new EditorGUI.DisabledScope(EditorApplication.isPlaying))
                 _deviceSelector.ShowGUI();
 
-            // Channel selection
-            EditorGUILayout.PropertyField(_channel);
+            // Mix to mono
+            EditorGUILayout.PropertyField(_mixToMono);
+
+            // Channel selection is disabled when Mix to Mono is on.
+            if (!_mixToMono.boolValue)
+            {
+                // Channel selection
+                EditorGUILayout.PropertyField(_channel);
+            }
 
             // Spectrum resolution (disabled during play mode)
             using (new EditorGUI.DisabledScope(EditorApplication.isPlaying))

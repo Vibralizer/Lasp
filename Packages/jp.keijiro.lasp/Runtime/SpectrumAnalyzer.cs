@@ -24,6 +24,11 @@ namespace Lasp
           { get => _deviceID;
             set => TrySelectDevice(value); }
 
+        [SerializeField] bool _mixToMono = true;
+        public bool mixToMono
+        { get => _mixToMono;
+          set => _mixToMono = value; }
+        
         // Channel Selection
         [SerializeField, Range(0, 15)] int _channel = 0;
         public int channel
@@ -165,7 +170,7 @@ namespace Lasp
             }
 
             // FFT
-            _fft?.Push(Stream.GetChannelDataSlice(_channel));
+            _fft?.Push(_mixToMono ? Stream.MonoDataSlice : Stream.GetChannelDataSlice(_channel));
             _fft?.Analyze(-currentGain - _dynamicRange, -currentGain);
         }
 
