@@ -18,7 +18,7 @@
       "url": "https://packages.unity.com"
     },
     "com.unity.ide.rider": {
-      "version": "3.0.36",
+      "version": "3.0.37",
       "depth": 0,
       "source": "registry",
       "dependencies": {
@@ -43,10 +43,11 @@
       }
     },
     "com.vibralizer.miniaudio": {
-      "version": "file:com.vibralizer.miniaudio",
+      "version": "https://github.com/Vibralizer/com.vibralizer.miniaudio.git",
       "depth": 0,
-      "source": "embedded",
-      "dependencies": {}
+      "source": "git",
+      "dependencies": {},
+      "hash": "5f695178a145d848068a53ba7b53a86975c2340c"
     },
     "jp.keijiro.lasp": {
       "version": "file:jp.keijiro.lasp",

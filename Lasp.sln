@@ -7,8 +7,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Lasp.Editor", "Lasp.Editor.
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Assembly-CSharp", "Assembly-CSharp.csproj", "{bbe6ba3a-974c-7fca-9559-74a17643c2ed}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "miniaudio.Runtime", "miniaudio.Runtime.csproj", "{665133e2-c928-4a09-f1d9-7afd7a060fa2}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -20,8 +18,6 @@ Global
 		{41b7ce3c-91d4-92b0-61ea-c48ea025334b}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{bbe6ba3a-974c-7fca-9559-74a17643c2ed}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{bbe6ba3a-974c-7fca-9559-74a17643c2ed}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{665133e2-c928-4a09-f1d9-7afd7a060fa2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{665133e2-c928-4a09-f1d9-7afd7a060fa2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

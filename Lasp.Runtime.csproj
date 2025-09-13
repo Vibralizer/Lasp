@@ -704,6 +704,9 @@
     <Reference Include="Unity.Mathematics">
       <HintPath>C:\dev\Lasp\Library\ScriptAssemblies\Unity.Mathematics.dll</HintPath>
     </Reference>
+    <Reference Include="miniaudio.Runtime">
+      <HintPath>C:\dev\Lasp\Library\ScriptAssemblies\miniaudio.Runtime.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEditor.UI">
       <HintPath>C:\dev\Lasp\Library\ScriptAssemblies\UnityEditor.UI.dll</HintPath>
     </Reference>
@@ -712,10 +715,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="miniaudio.Runtime.csproj">
-      <Project>{665133e2-c928-4a09-f1d9-7afd7a060fa2}</Project>
-      <Name>miniaudio.Runtime</Name>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it.
