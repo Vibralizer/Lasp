@@ -55,6 +55,7 @@
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\Internal\Utility.cs" />
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\SpectrumToTexture.cs" />
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\DeviceDescriptor.cs" />
+    <Compile Include="Packages\jp.keijiro.lasp\Runtime\Internal\MiniaudioInputDeviceHandle.cs" />
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\Internal\MultibandFilter.cs" />
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\Internal\RingBuffer.cs" />
     <Compile Include="Packages\jp.keijiro.lasp\Runtime\Backends\IAudioBackend.cs" />
